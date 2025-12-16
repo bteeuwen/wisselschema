@@ -96,17 +96,17 @@ def validate_schedule(schedule, verbose=False, periods_per_section=3):
     n_periods = schedule.shape[1]
     errors = []
 
-    # Check 1: Elke periode moet precies 5 spelers hebben
+    # Check 1: Elke periode moet precies 4 spelers hebben (voor 4-spelers-wissel variant)
     for period in range(n_periods):
         players_in_field = schedule[:, period].sum()
-        if players_in_field != 5:
-            errors.append(f"Periode {period}: {players_in_field} spelers (moet 5)")
+        if players_in_field != 4:
+            errors.append(f"Periode {period}: {players_in_field} spelers (moet 4)")
 
-    # Check 2: Controleer speeltijd per speler (9 of 10 periodes)
+    # Check 2: Controleer speeltijd per speler (7 of 8 periodes voor 4-spelers-wissel)
     for player in range(n_players):
         periods_played = schedule[player, :].sum()
-        if periods_played not in [9, 10]:
-            errors.append(f"Speler {player+1}: {periods_played} periodes (moet 9 of 10)")
+        if periods_played not in [7, 8]:
+            errors.append(f"Speler {player+1}: {periods_played} periodes (moet 7 of 8)")
 
     # Check 3: GEEN enkele speler mag 2 opeenvolgende bankperiodes hebben
     players_with_consecutive_bench = 0
@@ -356,7 +356,7 @@ def print_validation_summary(schedule, period_duration=5):
     print("Spelers per periode:")
     for period in range(n_periods):
         count = schedule[:, period].sum()
-        status = "✓" if count == 5 else "✗"
+        status = "✓" if count == 4 else "✗"
         print(f"  {period*period_duration}-{(period+1)*period_duration} min: {count} spelers {status}")
 
     # Check per speler
@@ -364,7 +364,7 @@ def print_validation_summary(schedule, period_duration=5):
     for player in range(n_players):
         periods = schedule[player, :].sum()
         minutes = periods * period_duration
-        status = "✓" if periods in [9, 10] else "✗"
+        status = "✓" if periods in [7, 8] else "✗"
         print(f"  Speler {player+1}: {periods} periodes ({minutes} min) {status}")
 
     # Check opeenvolgende bankperiodes
@@ -422,8 +422,8 @@ def main():
     parser.add_argument(
         '--players-on-field',
         type=int,
-        default=5,
-        help='Aantal spelers op het veld tegelijk'
+        default=4,
+        help='Aantal spelers op het veld tegelijk (4 voor 4-spelers-wissel variant)'
     )
 
     parser.add_argument(
