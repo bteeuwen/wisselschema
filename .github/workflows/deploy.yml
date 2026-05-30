@@ -15,7 +15,9 @@ jobs:
 
       - name: Install Scaleway CLI
         run: |
-          curl -s https://raw.githubusercontent.com/scaleway/scaleway-cli/master/scripts/get.sh | bash
+          SCW_VERSION="v2.56.1"
+          curl -L "https://github.com/scaleway/scaleway-cli/releases/download/${SCW_VERSION}/scaleway-cli_${SCW_VERSION#v}_linux_amd64" -o /usr/local/bin/scw
+          chmod +x /usr/local/bin/scw
           scw version
 
       - name: Configure Scaleway CLI
