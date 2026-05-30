@@ -11,7 +11,7 @@ ABSENT="Chester"
 SECTIONS=4
 
 # Activate virtual environment and run
-venv/bin/python generate_schema.py \
+~/dev/venvs/wisselschema/bin/python generate_schema.py \
     --team "$TEAM" \
     --keeper "$KEEPER" \
     --absent "$ABSENT" \

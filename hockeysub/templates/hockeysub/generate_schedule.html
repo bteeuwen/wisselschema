@@ -1,0 +1,82 @@
+{% extends 'hockeysub/base.html' %}
+
+{% block title %}Generate Schedule for {{ game.name }} - HockeySub{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h2>Generate Schedule for "{{ game.name }}"</h2>
+
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Game Configuration</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <ul class="list-unstyled">
+                            <li><strong>Players on field:</strong> {{ game.players_in_field }}</li>
+                            <li><strong>Total players:</strong> {{ game.total_players }}</li>
+                            <li><strong>Game length:</strong> {{ game.game_length }} minutes</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <ul class="list-unstyled">
+                            <li><strong>Sections:</strong> {{ game.sections }}</li>
+                            <li><strong>Substitution style:</strong> {{ game.get_substitution_length_display }}</li>
+                            <li><strong>Paired subbing:</strong> {% if game.paired_subbing %}Yes{% else %}No{% endif %}</li>
+                            {% if game.custom_block_duration %}
+                                <li><strong>Custom block duration:</strong> {{ game.custom_block_duration|floatformat:2 }} minutes</li>
+                            {% else %}
+                                <li><strong>Block sizing:</strong> Automatic</li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </div>
+
+                {% if game.player_names %}
+                    <h6 class="mt-3">Players:</h6>
+                    <p class="text-muted">{{ game.get_player_list|join:", " }}</p>
+                {% endif %}
+
+                <div class="mt-3">
+                    <strong>Expected playing time per player:</strong> {{ game.calculate_playing_time_per_player|floatformat:1 }} minutes
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">Ready to Generate Schedule</h5>
+                <p class="text-muted">
+                    Our Monte Carlo optimization algorithm will create the fairest possible substitution schedule
+                    based on your game parameters. This may take a few seconds to complete.
+                </p>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-primary btn-lg" id="generateBtn">
+                        <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                        Generate Optimized Schedule
+                    </button>
+                </form>
+
+                <div class="mt-3">
+                    <small class="text-muted">
+                        <a href="{% url 'hockeysub:game_detail' game.id %}">← Back to game details</a>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.querySelector('form').addEventListener('submit', function() {
+    const button = document.getElementById('generateBtn');
+    const spinner = button.querySelector('.spinner-border');
+
+    button.disabled = true;
+    spinner.classList.remove('d-none');
+    button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...';
+});
+</script>
+{% endblock %}

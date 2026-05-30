@@ -1,0 +1,173 @@
+{% extends 'hockeysub/base.html' %}
+{% load math_filters %}
+
+{% block title %}{{ game.name }} - HockeySub{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>{{ game.name }}</h2>
+    <div>
+        <a href="{% url 'hockeysub:edit_game' game.id %}" class="btn btn-outline-secondary">Edit Game</a>
+        {% if has_schedule %}
+            <a href="{% url 'hockeysub:view_schedule' game.id %}" class="btn btn-success">View Schedule</a>
+        {% endif %}
+        <a href="{% url 'hockeysub:generate_schedule' game.id %}" class="btn btn-primary">
+            {% if has_schedule %}Regenerate{% else %}Generate{% endif %} Schedule
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Game Configuration</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-6">Players on field:</dt>
+                    <dd class="col-sm-6">{{ game.players_in_field }}</dd>
+
+                    <dt class="col-sm-6">Total players:</dt>
+                    <dd class="col-sm-6">{{ game.total_players }}</dd>
+
+                    <dt class="col-sm-6">Game length:</dt>
+                    <dd class="col-sm-6">{{ game.game_length }} minutes</dd>
+
+                    <dt class="col-sm-6">Sections:</dt>
+                    <dd class="col-sm-6">{{ game.sections }}</dd>
+
+                    <dt class="col-sm-6">Substitution style:</dt>
+                    <dd class="col-sm-6">{{ game.get_substitution_length_display }}</dd>
+
+                    <dt class="col-sm-6">Paired subbing:</dt>
+                    <dd class="col-sm-6">
+                        {% if game.paired_subbing %}
+                            <span class="badge bg-success">Yes</span>
+                        {% else %}
+                            <span class="badge bg-secondary">No</span>
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-6">Created:</dt>
+                    <dd class="col-sm-6">{{ game.created_at|date:"M d, Y H:i" }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Players & Time Distribution</h5>
+            </div>
+            <div class="card-body">
+                <h6>Players ({{ game.total_players }} total):</h6>
+                <div class="mb-3">
+                    {% for player in game.get_player_list %}
+                        <span class="badge bg-light text-dark me-1">{{ player }}</span>
+                    {% endfor %}
+                </div>
+
+                <h6>Time Calculations:</h6>
+                <ul class="list-unstyled">
+                    <li><strong>Total playing time:</strong> {{ game.calculate_total_playing_time }} player-minutes</li>
+                    <li><strong>Average per player:</strong> {{ game.calculate_playing_time_per_player|floatformat:1 }} minutes</li>
+                    <li><strong>Section length:</strong> {{ game.game_length|div:game.sections|floatformat:1 }} minutes each</li>
+                </ul>
+
+                {% if has_schedule %}
+                    <h6>Schedule Status:</h6>
+                    <div class="alert alert-success">
+                        <strong>Active:</strong> Version {{ active_schedule.version }}
+                        (Score: {{ active_schedule.optimization_score|floatformat:2 }})
+                        <br><small>Generated: {{ active_schedule.created_at|date:"M d, Y H:i" }}</small>
+                    </div>
+                {% else %}
+                    <div class="alert alert-warning">
+                        <strong>Schedule Status:</strong> Not yet generated
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if all_schedules %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Schedule Versions</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Version</th>
+                                <th>Status</th>
+                                <th>Optimization Score</th>
+                                <th>Generated</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for schedule in all_schedules %}
+                            <tr>
+                                <td>v{{ schedule.version }}</td>
+                                <td>
+                                    {% if schedule.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Historical</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ schedule.optimization_score|floatformat:2 }}</td>
+                                <td>{{ schedule.created_at|date:"M d, H:i" }}</td>
+                                <td>
+                                    <a href="{% url 'hockeysub:view_schedule_version' game.id schedule.version %}" class="btn btn-sm btn-outline-primary">View</a>
+                                    {% if not schedule.is_active %}
+                                        <form method="post" action="{% url 'hockeysub:activate_schedule_version' game.id schedule.version %}" class="d-inline">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-success">Activate</button>
+                                        </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Next Steps</h5>
+                {% if has_schedule %}
+                    <p>Your schedule has been generated! You can:</p>
+                    <ul>
+                        <li><a href="{% url 'hockeysub:view_schedule' game.id %}">View the current schedule</a> with the tabular presentation</li>
+                        <li><a href="{% url 'hockeysub:generate_schedule' game.id %}">Regenerate the schedule</a> to try for a better optimization</li>
+                        <li><a href="{% url 'hockeysub:edit_game' game.id %}">Edit game configuration</a> and regenerate with new parameters</li>
+                        <li><a href="{% url 'hockeysub:game_list' %}">Browse other games</a> or <a href="{% url 'hockeysub:create_game' %}">create a new game</a></li>
+                    </ul>
+                {% else %}
+                    <p>Ready to create your optimized substitution schedule:</p>
+                    <ul>
+                        <li><a href="{% url 'hockeysub:generate_schedule' game.id %}">Generate schedule</a> using Monte Carlo optimization</li>
+                        <li>The algorithm will optimize for equal playing time and well-distributed substitutions</li>
+                        <li>View results in an intuitive tabular format perfect for coaches</li>
+                    </ul>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

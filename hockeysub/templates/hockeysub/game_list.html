@@ -1,0 +1,48 @@
+{% extends 'hockeysub/base.html' %}
+
+{% block title %}All Games - HockeySub{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>All Games</h2>
+    <a href="{% url 'hockeysub:create_game' %}" class="btn btn-primary">Create New Game</a>
+</div>
+
+{% if games %}
+    <div class="row">
+        {% for game in games %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ game.name }}</h5>
+                        <p class="card-text">
+                            <small class="text-muted">Created {{ game.created_at|date:"M d, Y" }}</small>
+                        </p>
+                        <ul class="list-unstyled small">
+                            <li><strong>Players:</strong> {{ game.total_players }} ({{ game.players_in_field }} on field)</li>
+                            <li><strong>Duration:</strong> {{ game.game_length }} minutes</li>
+                            <li><strong>Sections:</strong> {{ game.sections }}</li>
+                        </ul>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <div class="btn-group w-100" role="group">
+                            <a href="{% url 'hockeysub:game_detail' game.id %}" class="btn btn-outline-primary btn-sm">View</a>
+                            {% if game.schedule %}
+                                <a href="{% url 'hockeysub:view_schedule' game.id %}" class="btn btn-success btn-sm">Schedule</a>
+                            {% else %}
+                                <a href="{% url 'hockeysub:generate_schedule' game.id %}" class="btn btn-warning btn-sm">Generate</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="text-center py-5">
+        <h4 class="text-muted">No games created yet</h4>
+        <p class="text-muted">Create your first game to get started with hockey substitution scheduling.</p>
+        <a href="{% url 'hockeysub:create_game' %}" class="btn btn-primary btn-lg">Create Your First Game</a>
+    </div>
+{% endif %}
+{% endblock %}

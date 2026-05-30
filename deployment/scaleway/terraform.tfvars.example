@@ -1,0 +1,10 @@
+# Copy this file to terraform.tfvars and fill in the values.
+# Generate a Django secret key with:
+#   python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+
+django_secret_key    = "your-secret-key-here"
+mysql_password       = "your-wisselschema-db-password-here"
+create_app_container = false  # set to true after first image push
+
+# Set after first deploy when the Scaleway domain is known:
+# django_allowed_hosts = "xxxxx.functions.fnc.fr-par.scw.cloud"

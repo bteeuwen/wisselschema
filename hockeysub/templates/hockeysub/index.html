@@ -1,0 +1,52 @@
+{% extends 'hockeysub/base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <h1>Welcome to HockeySub</h1>
+        <p class="lead">Create fair and optimized hockey substitution schedules.</p>
+
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">How it works</h5>
+                <ul>
+                    <li><strong>Configure your game:</strong> Set the number of players on field, total players, game length, and other parameters</li>
+                    <li><strong>Generate schedule:</strong> Our Monte Carlo algorithm creates an optimized substitution schedule</li>
+                    <li><strong>View results:</strong> See a clear tabular presentation showing when each player is on/off the field</li>
+                </ul>
+
+                <h6>Optimization goals:</h6>
+                <ul class="text-muted">
+                    <li>Equalize playing time across all players</li>
+                    <li>Spread substitutions evenly to prevent players getting cold or worn out</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <a href="{% url 'hockeysub:create_game' %}" class="btn btn-primary btn-lg">Create New Game</a>
+            <a href="{% url 'hockeysub:game_list' %}" class="btn btn-outline-secondary btn-lg">View All Games</a>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <h4>Recent Games</h4>
+        {% if recent_games %}
+            <div class="list-group">
+                {% for game in recent_games %}
+                    <a href="{% url 'hockeysub:game_detail' game.id %}" class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">{{ game.name }}</h6>
+                            <small>{{ game.created_at|date:"M d, Y" }}</small>
+                        </div>
+                        <p class="mb-1">{{ game.total_players }} players, {{ game.game_length }} minutes</p>
+                        <small>{{ game.players_in_field }} on field</small>
+                    </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-muted">No games created yet. <a href="{% url 'hockeysub:create_game' %}">Create your first game!</a></p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
