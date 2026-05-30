@@ -122,7 +122,26 @@ def validate_schedule(schedule, verbose=False, periods_per_section=3):
     if players_with_consecutive_bench > 0:
         errors.append(f"{players_with_consecutive_bench} spelers met 2 opeenvolgende bankperiodes (0 toegestaan)")
 
-    # Check 4: Per sectie moet er minimaal 1 speler zijn die alle periodes speelt
+    # Check 4: Bij elke wissel moeten precies 4 spelers veranderen (1 blijft staan)
+    for period in range(n_periods - 1):
+        current_players = set(np.where(schedule[:, period] == 1)[0])
+        next_players = set(np.where(schedule[:, period + 1] == 1)[0])
+
+        # Spelers die blijven staan
+        staying = current_players & next_players
+        # Spelers die eruit gaan
+        going_out = current_players - next_players
+        # Spelers die erin komen
+        coming_in = next_players - current_players
+
+        if len(staying) != 1:
+            errors.append(f"Periode {period}->{period+1}: {len(staying)} spelers blijven (moet 1 zijn)")
+        if len(going_out) != 4:
+            errors.append(f"Periode {period}->{period+1}: {len(going_out)} spelers gaan eruit (moet 4 zijn)")
+        if len(coming_in) != 4:
+            errors.append(f"Periode {period}->{period+1}: {len(coming_in)} spelers komen erin (moet 4 zijn)")
+
+    # Check 5: Per sectie moet er minimaal 1 speler zijn die alle periodes speelt
     n_sections = n_periods // periods_per_section
     for section in range(n_sections):
         start_period = section * periods_per_section
@@ -391,6 +410,29 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
+    # Team en spelers parameters
+    parser.add_argument(
+        '--team',
+        type=str,
+        required=True,
+        help='Team naam (bijv. D1) - gebruikt TEAM_<naam> uit .env'
+    )
+
+    parser.add_argument(
+        '--keeper',
+        type=str,
+        required=True,
+        help='Naam van de keeper'
+    )
+
+    parser.add_argument(
+        '--absent',
+        type=str,
+        default='',
+        help='Comma-separated lijst van afwezige spelers (bijv. "Chester,Faber")'
+    )
+
+    # Wedstrijd parameters
     parser.add_argument(
         '--sections',
         type=int,
@@ -413,51 +455,78 @@ def main():
     )
 
     parser.add_argument(
-        '--players',
-        type=int,
-        default=9,
-        help='Aantal spelers in het team'
-    )
-
-    parser.add_argument(
         '--players-on-field',
         type=int,
         default=5,
-        help='Aantal spelers op het veld tegelijk'
-    )
-
-    parser.add_argument(
-        '--keeper',
-        type=int,
-        default=5,
-        help='Speler nummer die keeper is (1-based index)'
+        help='Aantal spelers op het veld tegelijk (bij wissel gaan 4 eruit, 1 blijft staan)'
     )
 
     args = parser.parse_args()
 
-    # Bereken aantal periodes gebaseerd op de parameters
+    # Laad team uit .env
+    team_var = f'TEAM_{args.team}'
+    team_roster = os.getenv(team_var)
+    if not team_roster:
+        print(f"FOUT: Team '{args.team}' niet gevonden in .env (variabele {team_var})")
+        return
+
+    # Parse team roster
+    all_players = [p.strip() for p in team_roster.split(',')]
+
+    # Check of keeper in team zit
+    if args.keeper not in all_players:
+        print(f"FOUT: Keeper '{args.keeper}' niet gevonden in team {args.team}")
+        print(f"Team spelers: {', '.join(all_players)}")
+        return
+
+    # Parse afwezige spelers
+    absent_list = [p.strip() for p in args.absent.split(',') if p.strip()]
+
+    # Valideer dat afwezige spelers in het team zitten
+    for absent in absent_list:
+        if absent not in all_players:
+            print(f"WAARSCHUWING: Afwezige speler '{absent}' niet gevonden in team {args.team}")
+
+    # Filter afwezige spelers
+    absent_list = [p for p in absent_list if p in all_players]
+
+    # Bepaal aanwezige spelers
+    present_players = [p for p in all_players if p not in absent_list]
+
+    # Keeper moet aanwezig zijn
+    if args.keeper not in present_players:
+        print(f"FOUT: Keeper '{args.keeper}' staat op de afwezigenlijst!")
+        return
+
+    # Bepaal roterende spelers (alle aanwezige spelers behalve keeper)
+    rotating_players = [p for p in present_players if p != args.keeper]
+
+    # Bereken aantal periodes
     n_periods = (args.sections * args.minutes_per_section) // args.period_duration
     periods_per_section = args.minutes_per_section // args.period_duration
 
     print(f"Genereren van wisselschema met volgende parameters:")
+    print(f"  - Team: {args.team}")
     print(f"  - Aantal secties: {args.sections}")
     print(f"  - Minuten per sectie: {args.minutes_per_section}")
     print(f"  - Duur wisselperiode: {args.period_duration} minuten")
     print(f"  - Aantal periodes: {n_periods}")
     print(f"  - Periodes per sectie: {periods_per_section}")
-    print(f"  - Aantal spelers: {args.players}")
-    print(f"  - Veldspelers (excl. keeper): {args.players_on_field}")
-    print(f"  - Keeper: speler {args.keeper} (altijd op veld)")
-    print(f"  - Totaal op veld: {args.players_on_field + 1} ({args.players_on_field} veldspelers + 1 keeper)")
+    print(f"  - Totaal spelers in team: {len(all_players)}")
+    print(f"  - Aanwezig: {len(present_players)} spelers")
+    print(f"  - Afwezig: {len(absent_list)} spelers")
+    print(f"  - Keeper: {args.keeper} (altijd op veld)")
+    print(f"  - Roterende veldspelers: {len(rotating_players)}")
+    print(f"  - Veldspelers per periode: {args.players_on_field}")
+    print(f"  - Totaal op veld: {args.players_on_field + 1} ({args.players_on_field} roterende + 1 keeper)")
     print()
 
     # Genereer basis schema (zonder consecutive bench constraint)
     # Keeper is altijd op veld, dus we schedulen alleen de andere spelers
-    # We hebben args.players_on_field veldspelers NAAST de keeper
     result = generate_schedule(
-        n_players=args.players - 1,  # Exclude keeper from rotation
+        n_players=len(rotating_players),
         n_periods=n_periods,
-        players_on_field=args.players_on_field,  # Keep full field count (keeper is separate)
+        players_on_field=args.players_on_field,
         max_attempts=5000,
         periods_per_section=periods_per_section
     )
@@ -489,33 +558,8 @@ def main():
             result = None
 
     if result is not None:
-        # Load player names from environment variables (excluding keeper)
-        all_player_names = []
-        for i in range(args.players):
-            all_player_names.append(os.getenv(f'PLAYER_{i+1}', f'Player {i+1}'))
-
-        # Check for absent players (players defined in env but not in args.players)
-        absent_players = []
-        i = args.players + 1
-        while True:
-            player_name = os.getenv(f'PLAYER_{i}')
-            if player_name is None:
-                break
-            absent_players.append(f"{player_name} (speler {i})")
-            i += 1
-
-        # Get keeper name and create list without keeper, with numbering
-        keeper_name = all_player_names[args.keeper - 1]
-        keeper_number = args.keeper
-
-        # Create numbered player names list (excluding keeper)
-        player_names = []
-        player_numbers = []
-        for i, name in enumerate(all_player_names):
-            if i != args.keeper - 1:
-                player_number = i + 1
-                player_names.append(f"{player_number}. {name}")
-                player_numbers.append(player_number)
+        # Create numbered player names list for rotating players
+        player_names = [f"{i+1}. {name}" for i, name in enumerate(rotating_players)]
 
         # Print de beste oplossing
         if isinstance(result, list) and len(result) > 0:
@@ -546,13 +590,13 @@ def main():
         # Print keeper info
         total_minutes = n_periods * args.period_duration
         print()
-        print(f"Keeper: {keeper_number}. {keeper_name} - Altijd op veld ({total_minutes} minuten, {n_periods} periodes)")
+        print(f"Keeper: {args.keeper} - Altijd op veld ({total_minutes} minuten, {n_periods} periodes)")
 
         # Print absent players if any
-        if absent_players:
+        if absent_list:
             print()
             print("Afwezig:")
-            for absent in absent_players:
+            for absent in absent_list:
                 print(f"  - {absent}")
     else:
         print("Kon geen geldig schema genereren. Probeer het opnieuw of pas de parameters aan.")

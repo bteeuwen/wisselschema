@@ -1,0 +1,82 @@
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Install Scaleway CLI
+        run: |
+          curl -s https://raw.githubusercontent.com/scaleway/scaleway-cli/master/scripts/get.sh | bash
+          scw version
+
+      - name: Configure Scaleway CLI
+        run: |
+          scw init access-key="${{ secrets.SCW_ACCESS_KEY }}" \
+                   secret-key="${{ secrets.SCW_SECRET_KEY }}" \
+                   organization-id="${{ secrets.SCW_ORGANIZATION_ID }}" \
+                   project-id="${{ secrets.SCW_PROJECT_ID }}" \
+                   region=fr-par \
+                   zone=fr-par-1 \
+                   with-ssh-key=false
+
+      - name: Login to Scaleway Container Registry
+        run: scw registry login
+
+      - name: Build and push Docker image
+        run: |
+          IMAGE_TAG="${{ github.sha }}"
+          REGISTRY_ENDPOINT="${{ secrets.SCW_REGISTRY_ENDPOINT }}"
+          IMAGE_NAME="${REGISTRY_ENDPOINT}/wisselschema-app"
+
+          docker build \
+            -t ${IMAGE_NAME}:${IMAGE_TAG} \
+            -t ${IMAGE_NAME}:latest \
+            -f Dockerfile \
+            .
+
+          docker push ${IMAGE_NAME}:${IMAGE_TAG}
+          docker push ${IMAGE_NAME}:latest
+
+          echo "IMAGE_NAME=${IMAGE_NAME}" >> "$GITHUB_ENV"
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_ENV"
+
+      - name: Deploy to Scaleway Serverless Container
+        run: |
+          CONTAINER_ID="${{ secrets.SCW_WISSELSCHEMA_CONTAINER_ID }}"
+
+          scw container container update "${CONTAINER_ID}" \
+            registry-image="${IMAGE_NAME}:${IMAGE_TAG}" \
+            region=fr-par
+
+          scw container container deploy "${CONTAINER_ID}" region=fr-par
+
+      - name: Verify deployment
+        run: |
+          CONTAINER_ID="${{ secrets.SCW_WISSELSCHEMA_CONTAINER_ID }}"
+
+          echo "Waiting for container to reach ready status..."
+          for i in $(seq 1 12); do
+            STATUS=$(scw container container get "${CONTAINER_ID}" -o json region=fr-par | jq -r '.status')
+            echo "  Attempt ${i}/12: status=${STATUS}"
+            if [ "${STATUS}" = "ready" ] || [ "${STATUS}" = "created" ]; then
+              break
+            fi
+            sleep 10
+          done
+
+          if [ "${STATUS}" != "ready" ] && [ "${STATUS}" != "created" ]; then
+            echo "Deployment failed: container status is ${STATUS}"
+            exit 1
+          fi
+
+          ENDPOINT=$(scw container container get "${CONTAINER_ID}" -o json region=fr-par | jq -r '.domain_name')
+          echo "Deployed: https://${ENDPOINT}"

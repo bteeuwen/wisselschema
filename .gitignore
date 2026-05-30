@@ -1,6 +1,20 @@
 # Environment variables
 .env
 
+# Deployment secrets (never commit)
+deployment/github_secrets.env
+deployment/scaleway/terraform.tfvars
+deployment/scaleway/terraform.tfstate
+deployment/scaleway/terraform.tfstate.backup
+deployment/scaleway/.terraform/
+
+# Database
+db.sqlite3
+*.sqlite3
+
+# Static files (collected)
+staticfiles/
+
 # Python
 __pycache__/
 *.py[cod]

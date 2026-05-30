@@ -1,0 +1,150 @@
+{% extends 'hockeysub/base.html' %}
+{% load math_filters %}
+
+{% block title %}Schedule for {{ game.name }} - HockeySub{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2>Schedule: {{ game.name }}</h2>
+        {% if is_historical %}
+            <p class="text-muted mb-0">
+                Version {{ schedule.version }} (Historical) -
+                <span class="badge bg-warning">Not Active</span>
+            </p>
+        {% else %}
+            <p class="text-muted mb-0">
+                Version {{ schedule.version }} -
+                <span class="badge bg-success">Active</span>
+            </p>
+        {% endif %}
+    </div>
+    <div>
+        <a href="{% url 'hockeysub:game_detail' game.id %}" class="btn btn-outline-secondary no-print">Game Details</a>
+        {% if not is_historical %}
+            <a href="{% url 'hockeysub:generate_schedule' game.id %}" class="btn btn-primary no-print">Regenerate</a>
+        {% endif %}
+        <button onclick="window.print()" class="btn btn-outline-dark no-print">&#x1F5A8; Print</button>
+    </div>
+</div>
+
+<!-- Compact single-line metadata strip shown only in print -->
+<div class="print-meta-strip" style="display:none; font-size:0.7rem; gap:1.5rem; margin-bottom:4px; flex-wrap:wrap; align-items:center;">
+    <strong style="font-size:0.85rem;">{{ game.name }}</strong>
+    <span>{{ game.players_in_field }} on field &bull; {{ game.total_players }} players &bull; {{ game.game_length }} min &bull; {{ game.sections }} sections</span>
+    <span>Avg playing time: {{ game.calculate_playing_time_per_player|floatformat:1 }} min</span>
+    <span style="color:#666;">Score: {{ schedule.optimization_score|floatformat:2 }}</span>
+</div>
+
+<!-- Full metadata cards shown on screen only -->
+<div class="row mb-4 print-meta-cards">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title">Game Summary</h6>
+                <ul class="list-unstyled mb-0">
+                    <li><strong>Players on field:</strong> {{ game.players_in_field }}</li>
+                    <li><strong>Total players:</strong> {{ game.total_players }}</li>
+                    <li><strong>Game length:</strong> {{ game.game_length }} minutes</li>
+                    <li><strong>Sections:</strong> {{ game.sections }}</li>
+                    {% if game.custom_block_duration %}
+                        <li><strong>Custom block duration:</strong> {{ game.custom_block_duration|floatformat:2 }} minutes</li>
+                    {% endif %}
+                    <li><strong>Optimization score:</strong> {{ schedule.optimization_score|floatformat:2 }}</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title">Time Distribution</h6>
+                <ul class="list-unstyled mb-0">
+                    <li><strong>Total playing time:</strong> {{ game.calculate_total_playing_time }} player-minutes</li>
+                    <li><strong>Average per player:</strong> {{ game.calculate_playing_time_per_player|floatformat:1 }} minutes</li>
+                    <li><strong>Total time blocks:</strong> {{ time_blocks|length }}</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Substitution Schedule</h5>
+        <small class="text-muted">Green = Playing (P), Red = Bench (B) - Updated: {% now "H:i:s" %}</small>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered schedule-table">
+                <thead>
+                    <tr>
+                        <th class="player-name">Player</th>
+                        {% for block in time_blocks %}
+                            <th class="time-header">
+                                {% block_relative_time time_blocks block %}
+                                <br><small class="text-primary">{% section_letter time_blocks block %}</small>
+                            </th>
+                        {% endfor %}
+                        <th class="summary-cell">Playing Time</th>
+                        <th class="summary-cell">Bench Time</th>
+                        <th class="summary-cell">Bench Blocks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in schedule_matrix %}
+                        <tr>
+                            <td class="player-name">{{ row.player.name }}</td>
+                            {% for block_data in row.blocks %}
+                                <td class="schedule-cell {% if block_data.is_active %}active-cell{% else %}bench-cell{% endif %}" style="{% if block_data.is_active %}background-color: #28a745 !important; color: white !important;{% else %}background-color: #dc3545 !important; color: white !important;{% endif %}">
+                                    {% if block_data.is_active %}P{% else %}B{% endif %}
+                                </td>
+                            {% endfor %}
+                            <td class="summary-cell">{{ row.total_playing_time|floatformat:1 }}min</td>
+                            <td class="summary-cell">{{ row.total_bench_time|floatformat:1 }}min</td>
+                            <td class="summary-cell">{{ row.substitutions }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td class="summary-cell">Active Players</td>
+                        {% for total in column_totals %}
+                            <td class="summary-cell {% if total.is_valid %}validation-success{% else %}validation-error{% endif %}">
+                                {{ total.total_active }}
+                            </td>
+                        {% endfor %}
+                        <td class="summary-cell" colspan="3">Validation</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4 print-hide">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title">Legend & Validation</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <ul class="list-unstyled">
+                            <li><span class="badge bg-success">P</span> Player is actively playing</li>
+                            <li><span class="badge bg-danger">B</span> Player is on the bench</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <ul class="list-unstyled">
+                            <li><span class="badge bg-success">Green validation</span> Correct number of active players</li>
+                            <li><span class="badge bg-danger">Red validation</span> Invalid player count</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
